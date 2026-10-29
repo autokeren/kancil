@@ -144,9 +144,47 @@ func (s *Server) agentFor(userID string, mk func(string, func(string)) *agent.Ag
 		if s.Cfg.MemoryDir != "" {
 			a.LoadHistory(filepath.Join(s.Cfg.MemoryDir, userID+".json"))
 		}
+		// status updates: send tool progress to user (like terminal output)
+		a.OnToolProgress = func(toolName string) {
+			msg := toolStatusText(toolName)
+			if msg != "" {
+				s.sendMessenger(userID, msg)
+			}
+		}
 		s.agents[userID] = a
 	}
 	return a
+}
+
+// toolStatusText maps tool names to friendly progress messages.
+// These are system progress indicators (like terminal output), not AI replies.
+func toolStatusText(tool string) string {
+	switch tool {
+	case "write_file":
+		return "📝 Nulis kode…"
+	case "edit_file":
+		return "✏️ Edit file…"
+	case "publish_site":
+		return "🚀 Publish website…"
+	case "gen_image":
+		return "🎨 Bikin gambar…"
+	case "session_create":
+		return "🔌 Setup browser…"
+	case "page_open":
+		return "👀 Buka website buat dicek…"
+	case "page_screenshot":
+		return "📸 Ambil screenshot…"
+	case "page_snapshot":
+		return "📖 Baca isi halaman…"
+	case "send_photo":
+		return "📤 Kirim hasil ke chat…"
+	case "list_files":
+		return "📁 Cek workspace…"
+	case "read_file":
+		return "📖 Baca file…"
+	default:
+		return "⚙ " + tool + "…"
+	}
 }
 
 func (s *Server) buildUserMessage(ctx context.Context, ev messenger.Event) (*model.Message, error) {

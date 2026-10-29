@@ -37,7 +37,8 @@ type Agent struct {
 	Client          *meta.Client
 	Tools           *tools.Registry
 	History         []model.Message
-	OnFirstToolCall func()      // fired once when Muse decides to build
+	OnFirstToolCall  func()      // fired once when Muse decides to build
+	OnToolProgress  func(string) // fired on EVERY tool call (status update)
 	firstToolFired   bool
 	MemoryDir       string     // where history persists
 	ContextLimit     int        // model context window (tokens)
@@ -120,6 +121,10 @@ func (a *Agent) HandleMessage(ctx context.Context, userMsg model.Message) (strin
 		// execute each tool call, append results
 		for _, call := range resp.ToolCalls {
 			fmt.Printf("    ⚙ %s(%s)\n", call.Function.Name, shortArgs(call.Function.Arguments))
+			// status update to user (every tool call after the first)
+			if a.firstToolFired && a.OnToolProgress != nil {
+				a.OnToolProgress(call.Function.Name)
+			}
 			result := a.Tools.Execute(ctx, call)
 			a.History = append(a.History, model.Message{
 				Role:       "tool",
