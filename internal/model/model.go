@@ -12,16 +12,22 @@ type Message struct {
 
 // ContentPart is a multimodal message part (text, image, or audio).
 type ContentPart struct {
-	Type       string      `json:"type"` // "text" | "image_url" | "input_audio"
+	Type       string      `json:"type"` // "text" | "image_url" | "input_audio" | "video_url"
 	Text       string      `json:"text,omitempty"`
 	ImageURL   *ImageURL   `json:"image_url,omitempty"`
 	InputAudio *InputAudio `json:"input_audio,omitempty"`
+	VideoURL   *VideoURL   `json:"video_url,omitempty"`
+}
+
+type VideoURL struct {
+	URL string `json:"url"`
 }
 
 type InputAudio struct {
 	Data   string `json:"data"`
 	Format string `json:"format"`
 }
+
 
 type ImageURL struct {
 	URL string `json:"url"`

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -49,6 +50,7 @@ func (s *Server) Start(ctx context.Context, mkAgent func(userID string, onImage 
 	// sites
 	mux.Handle("/sites/", http.StripPrefix("/sites/", s.sitesHandler()))
 	mux.Handle("/images/", http.StripPrefix("/images/", s.imagesHandler()))
+	mux.Handle("/videos/", http.StripPrefix("/videos/", s.videosHandler()))
 
 	// messenger webhook
 	mux.HandleFunc("/webhook/messenger", func(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +97,11 @@ func truncateStr(s string, n int) string {
 		return s
 	}
 	return s[:n] + "…"
+}
+
+func (s *Server) videosHandler() http.Handler {
+	root := filepath.Join(s.Cfg.Workspace, "videos")
+	return http.FileServer(http.Dir(root))
 }
 
 func (s *Server) imagesHandler() http.Handler {
@@ -187,6 +194,33 @@ func (s *Server) buildUserMessage(ctx context.Context, ev messenger.Event) (*mod
 			parts := []model.ContentPart{
 				{Type: "text", Text: "(user sent this photo" + captionNote(ev.Text) + " — read it and respond naturally)"},
 				{Type: "image_url", ImageURL: &model.ImageURL{URL: "data:image/jpeg;base64," + b64}},
+			}
+			return &model.Message{Role: "user", Content: parts}, nil
+
+		case "video":
+			fmt.Printf("→ [%s] 🎥 video (downloading…)\n", ev.SenderID[:min(8, len(ev.SenderID))])
+			// Download + save to workspace + serve from our tunnel
+			data, err := messenger.DownloadAttachment(att.PayloadURL)
+			if err != nil {
+				return nil, err
+			}
+			// Save to workspace/videos/
+			videoDir := filepath.Join(s.Cfg.Workspace, "videos")
+			os.MkdirAll(videoDir, 0o755)
+			videoName := fmt.Sprintf("video-%d.mp4", time.Now().UnixNano())
+			videoPath := filepath.Join(videoDir, videoName)
+			if err := os.WriteFile(videoPath, data, 0o644); err != nil {
+				return nil, err
+			}
+			// Serve from our public URL
+			publicURL := s.Cfg.PublicURL + "/videos/" + videoName
+			// Also serve locally
+			fmt.Printf("  📥 video saved: %d bytes → %s\n", len(data), publicURL)
+
+			// Build multimodal message with video_url content part
+			parts := []model.ContentPart{
+				{Type: "text", Text: "(user sent this video" + captionNote(ev.Text) + " — watch it and respond naturally)"},
+				{Type: "video_url", VideoURL: &model.VideoURL{URL: publicURL}},
 			}
 			return &model.Message{Role: "user", Content: parts}, nil
 		}
