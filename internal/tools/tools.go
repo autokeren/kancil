@@ -26,8 +26,9 @@ type Registry struct {
 	Client       *meta.Client
 	Publisher    Publisher
 	OnImageSaved func(publicURL string)
-	mcpServers   map[string]*mcp.Server   // by tool name prefix routing
-	mcpTools     map[string]*mcp.Server   // toolName -> owning server
+	mcpServers   map[string]*mcp.Server
+	mcpTools     map[string]*mcp.Server             // toolName -> owning server
+	mcpDefs      map[string]model.ToolDefinition    // toolName -> full def (with parameters)
 }
 
 func New(workspace, publicBase string, client *meta.Client, pub Publisher) *Registry {
@@ -35,6 +36,7 @@ func New(workspace, publicBase string, client *meta.Client, pub Publisher) *Regi
 		Workspace: workspace, PublicBase: publicBase, Client: client, Publisher: pub,
 		mcpServers: map[string]*mcp.Server{},
 		mcpTools:   map[string]*mcp.Server{},
+		mcpDefs:    map[string]model.ToolDefinition{},
 	}
 }
 
@@ -50,6 +52,7 @@ func (r *Registry) AttachMCP(ctx context.Context, srv *mcp.Server) error {
 	r.mcpServers[srv.Name] = srv
 	for _, d := range defs {
 		r.mcpTools[d.Function.Name] = srv
+		r.mcpDefs[d.Function.Name] = d
 	}
 	fmt.Printf("  ⚡ MCP %s: %d tools\n", srv.Name, len(defs))
 	return nil
@@ -92,17 +95,13 @@ func (r *Registry) Definitions() []model.ToolDefinition {
 }
 
 func (r *Registry) mcpDefinition(name string) *model.ToolDefinition {
-	srv := r.mcpTools[name]
-	if srv == nil {
-		return nil
+	if d, ok := r.mcpDefs[name]; ok {
+		// prefix description with the MCP server name for context
+		enriched := d
+		enriched.Function.Description = fmt.Sprintf("[mcp:%s] %s", r.mcpTools[name].Name, d.Function.Description)
+		return &enriched
 	}
-	return &model.ToolDefinition{
-		Type: "function",
-		Function: model.ToolFunction{
-			Name:        name,
-			Description: fmt.Sprintf("[mcp:%s] %s", srv.Name, name),
-		},
-	}
+	return nil
 }
 
 func (r *Registry) Execute(ctx context.Context, call model.ToolCall) string {
