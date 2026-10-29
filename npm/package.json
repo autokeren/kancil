@@ -1,7 +1,7 @@
 {
-  "name": "kancil",
+  "name": "@autokeren/kancil",
   "version": "0.1.0",
-  "description": "🦌 The clever agent that lives in your Messenger. Muse Spark brain + Ghostfox MCP eyes + zero hardcoded replies.",
+  "description": "\ud83e\udd8c The clever agent that lives in your Messenger. Muse Spark brain + Ghostfox MCP eyes + zero hardcoded replies.",
   "license": "MIT",
   "repository": {
     "type": "git",

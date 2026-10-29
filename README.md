@@ -8,11 +8,41 @@ Built entirely on the **Meta Model API** and the **Messenger Platform** for the 
 
 ---
 
-## Why Kancil exists
+## Why Messenger — the market case
 
-The agentic wave (autonomous coding agents, agent harnesses) lives on **Telegram and WhatsApp**. **Messenger — a billion-user channel and the default messaging surface across Southeast Asia, including Indonesia where this was built — has no serious agent harness.** Everyone follows the easy deploy path; the big channel stayed empty.
+### The gap is real
 
-Kancil fills it: **an agent harness that lives natively in Messenger**, where UMKM owners, students, and warung operators already are. They will never install a CLI, never open a terminal — but they voice-note their friends all day. Kancil meets them there.
+Every serious agent harness (OpenClaw, autonomous coding CLIs, AI assistant frameworks) targets **Telegram or WhatsApp**. **Messenger has zero.** Not because it's hard — because Telegram bots deploy in 5 minutes while Messenger requires Meta app review. Everyone follows the easy path; the billion-user channel stayed empty.
+
+Kancil fills it.
+
+### The numbers
+
+| | |
+|---|---|
+| **Messenger MAU** | 1+ billion globally (Meta) |
+| **Indonesia Facebook users** | 140M+ — one of the largest markets in the world |
+| **Indonesian UMKM (small businesses)** | 64+ million enterprises, most use Facebook Pages |
+| **Voice note usage in Indonesia** | Dominant — people voice-note more than they type |
+| **Agent-as-a-Service market** | $47B projected by 2030 (Grand View Research) |
+| **Current competitors on Messenger** | Only scripted bots (ManyChat) — no autonomous agent harness |
+
+### Who Kancil serves — "Build for Your World"
+
+This is built for **Indonesian UMKM owners, students, and warung operators** who will never install a CLI or open a terminal. They already live in Messenger every day. They voice-note their friends all day. Kancil meets them exactly where they are:
+
+- **Warung owner** voice-notes: *"bikin website kedai kopi gua"* → live website in the chat
+- **Student** sends a photo of their notes → agent builds a study site from it
+- **UMKM seller** sends a video of their product → agent describes it and creates a landing page
+
+No new app to install. No terminal to learn. Just chat — in **Bahasa Indonesia** — with an agent that actually builds things.
+
+### Why now
+
+1. **Muse Spark 1.3 ships native tool calling + MCP support** — the agentic capabilities finally exist on Meta's own models
+2. **Messenger Platform APIs are mature** — webhooks, sender actions, native image attachments, voice/audio handling are all stable and well-documented
+3. **The agentic wave has proven the model** (Telegram/WA harnesses have traction) but **nobody brought it to the biggest channel in Southeast Asia**
+4. **Indonesia's digital economy** is a government priority — UMKM digitalization is a national agenda
 
 > Kancil doesn't fight the big animals — it outsmarts them. 🦌
 
