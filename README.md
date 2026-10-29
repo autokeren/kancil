@@ -57,6 +57,8 @@ No new app to install. No terminal to learn. Just chat — in **Bahasa Indonesia
 | **🎙 a voice note** (Bahasa Indonesia or English) | Muse Voice Transcribe → agent loop | Text reply, built task — voice notes are first-class input |
 | **📷 a photo** (e.g. a menu, a shop sign) | Muse Spark reads the image (multimodal input) | A site built from *what's in your photo* |
 | **🎥 a video** (from your gallery or camera) | Muse Spark reads the visual sequence AND embedded audio together — one upload, both description and transcript | What happened in the video, described in text |
+| **🎙 "buka detik.com, apa berita utamanya?"** | Agent opens Ghostfox browser → reads the page → summarizes headlines | Live web content in your chat — from a voice note |
+| **"ya coba buka"** (follow-up) | Agent remembers context from previous message → opens Google News instead | Contextual memory — it understands what you mean |
 | **"ganti judul jadi X"** *(Indonesian: "change the title to X")* | `edit_file` — one targeted string replace | Refined site, no full rewrite |
 | Any build request | Ghostfox MCP: agent **opens the live site in its stealth browser, takes a screenshot, and verifies its own work** | **Screenshot of the result, sent to your chat** |
 
@@ -65,7 +67,7 @@ No new app to install. No terminal to learn. Just chat — in **Bahasa Indonesia
 Most bots just answer. Kancil closes the loop autonomously:
 
 ```
-"bikin website apotik sehat" *(Indonesian)*
+"buka detik.com dan ceritain berita utamanya" *(voice note)* *(Indonesian)*
   → write_file  (builds index.html)
   → publish_site (live URL)
   → [MCP: ghostfox] page_open (opens the live site)
@@ -90,6 +92,7 @@ An agent that builds, **sees**, and proves its work — inside a chat app.
 | Multimodal sight | Muse Spark reads photos sent in the chat |
 | Multimodal video | Muse Spark reads video (visual + embedded audio) via `video_url` content parts |
 | Speech to text | Muse Voice Transcribe 1.0 — official `/v1/asr/transcribe` endpoint, 24kHz mono PCM WAV |
+| Multilingual voice | Voice notes work in Bahasa Indonesia AND English — the agent responds in the language spoken |
 | Credits | $150 Meta Model API credits (hackathon allocation) |
 
 Plus our own **Ghostfox MCP** stealth browser engine (patched-Firefox) as the agent's eyes for self-verification — connected through the **MCP bridge**, the same protocol Muse Spark 1.3 advertises native support for.
@@ -139,6 +142,8 @@ Plus our own **Ghostfox MCP** stealth browser engine (patched-Firefox) as the ag
 
 ### Design notes
 
+- **Real-time progress updates.** During multi-step builds, the agent sends tool progress messages to the chat: *"📝 Nulis kode… → 🚀 Publish website… → 👀 Buka website… → 📸 Screenshot…"* — the user watches the agent work in real time, never staring at a silent typing indicator. These are system progress indicators (like terminal output), not AI replies.
+- **Browser session reuse.** Ghostfox browser sessions persist across messages — the agent can open a website, then open another in the same session, maintaining state.
 - **Zero hardcoded replies.** Every user-facing sentence — including the quick *"Siap, gua kerjain ya!"* (Indonesian: "On it, I'll build that for you!") acknowledgment — is written by Muse in the user's own language. The ack is fired by a parallel intent-router request to the model; if the message is just a question, Muse replies `SKIP` and no ack is sent.
 - **Memory that survives restarts.** Per-user conversation history persists as JSON and reloads on boot. When prompt tokens pass 85% of the 1M context window, Muse summarizes older turns — recent context stays verbatim.
 - **Multimodal input.** Voice notes arrive as audio attachments → downloaded → Muse Voice Transcribe → the transcript enters the agent loop flagged as a voice note, so the agent can reference how the user spoke. Photos arrive as image attachments → base64 → multimodal message parts — Muse Spark reads them natively.
