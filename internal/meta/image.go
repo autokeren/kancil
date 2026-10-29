@@ -2,8 +2,7 @@ package meta
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+		"fmt"
 )
 
 // ImageResult is one generated image. Muse Image returns either a URL or b64.
@@ -36,10 +35,3 @@ func (c *Client) GenerateImage(ctx context.Context, prompt, size string) (*Image
 	return &out.Data[0], nil
 }
 
-// TranscribeAudio converts audio bytes to text with muse-voice-transcribe-1.0.
-func (c *Client) TranscribeAudio(ctx context.Context, audio []byte, filename string) (string, error) {
-	// implemented in audio.go (multipart)
-	return c.transcribe(ctx, audio, filename)
-}
-
-var _ = json.Marshal

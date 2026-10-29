@@ -154,18 +154,25 @@ func (s *Server) buildUserMessage(ctx context.Context, ev messenger.Event) (*mod
 		att := ev.Attachments[0]
 		switch att.Type {
 		case "audio":
-			fmt.Printf("→ [%s] 🎙 voice note (downloading…)\n", ev.SenderID[:min(8, len(ev.SenderID))])
+			fmt.Printf("→ [%s] 🎙 voice note (downloading %d bytes) url=%s\n", ev.SenderID[:min(8, len(ev.SenderID))], 0, truncateStr(att.PayloadURL, 60))
+			if att.PayloadURL == "" {
+				return nil, fmt.Errorf("voice note: empty payload URL")
+			}
 			data, err := messenger.DownloadAttachment(att.PayloadURL)
 			if err != nil {
+				fmt.Printf("⚠ download failed: %v\n", err)
 				return nil, err
 			}
+			fmt.Printf("  📥 downloaded %d bytes\n", len(data))
 			client := meta.New(s.Cfg.MetaAPIKey, s.Cfg.BaseURL)
 			tctx, tcancel := context.WithTimeout(ctx, 90*time.Second)
 			defer tcancel()
 			transcript, err := client.TranscribeAudio(tctx, data, "voice-note.mp4")
 			if err != nil {
+				fmt.Printf("⚠ transcribe failed: %v\n", err)
 				return nil, fmt.Errorf("transcribe: %w", err)
 			}
+			fmt.Printf("  📝 transcript: %s\n", firstLine(transcript, 80))
 			fmt.Printf("→ [%s] 🎙 voice note: %s\n", ev.SenderID[:min(8, len(ev.SenderID))], firstLine(transcript, 80))
 			label := "The user sent a VOICE NOTE that says: \"" + transcript + "\" (reply in the same language)"
 			return &model.Message{Role: "user", Content: label}, nil
@@ -242,6 +249,11 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 		userMsgRef := userMsg
 		senderID := ev.SenderID
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("⚠ PANIC recovered: %v\n", r)
+				}
+			}()
 			// agent dibuat DI SINI (MCP attach kalau perlu) — webhook gak ke-block
 			a := s.agentFor(senderID, mk)
 

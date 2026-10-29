@@ -10,11 +10,17 @@ type Message struct {
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 }
 
-// ContentPart is a multimodal message part (text or image).
+// ContentPart is a multimodal message part (text, image, or audio).
 type ContentPart struct {
-	Type     string    `json:"type"` // "text" | "image_url"
-	Text     string    `json:"text,omitempty"`
-	ImageURL *ImageURL `json:"image_url,omitempty"`
+	Type       string      `json:"type"` // "text" | "image_url" | "input_audio"
+	Text       string      `json:"text,omitempty"`
+	ImageURL   *ImageURL   `json:"image_url,omitempty"`
+	InputAudio *InputAudio `json:"input_audio,omitempty"`
+}
+
+type InputAudio struct {
+	Data   string `json:"data"`
+	Format string `json:"format"`
 }
 
 type ImageURL struct {
