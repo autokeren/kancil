@@ -161,27 +161,27 @@ func (s *Server) agentFor(userID string, mk func(string, func(string)) *agent.Ag
 func toolStatusText(tool string) string {
 	switch tool {
 	case "write_file":
-		return "📝 Nulis kode…"
+		return "📝 Writing code…"
 	case "edit_file":
-		return "✏️ Edit file…"
+		return "✏️ Editing file…"
 	case "publish_site":
-		return "🚀 Publish website…"
+		return "🚀 Publishing site…"
 	case "gen_image":
-		return "🎨 Bikin gambar…"
+		return "🎨 Generating image…"
 	case "session_create":
-		return "🔌 Setup browser…"
+		return "🔌 Starting browser…"
 	case "page_open":
-		return "👀 Buka website buat dicek…"
+		return "👀 Opening website to verify…"
 	case "page_screenshot":
-		return "📸 Ambil screenshot…"
+		return "📸 Taking screenshot…"
 	case "page_snapshot":
-		return "📖 Baca isi halaman…"
+		return "📖 Reading page content…"
 	case "send_photo":
-		return "📤 Kirim hasil ke chat…"
+		return "📤 Sending result to chat…"
 	case "list_files":
-		return "📁 Cek workspace…"
+		return "📁 Checking workspace…"
 	case "read_file":
-		return "📖 Baca file…"
+		return "📖 Reading file…"
 	default:
 		return "⚙ " + tool + "…"
 	}
