@@ -20,13 +20,15 @@ type Publisher interface {
 }
 
 type Registry struct {
-	Workspace string
-	Client    *meta.Client
-	Publisher Publisher
+	Workspace    string
+	PublicBase   string
+	Client       *meta.Client
+	Publisher    Publisher
+	OnImageSaved func(publicURL string)
 }
 
-func New(workspace string, client *meta.Client, pub Publisher) *Registry {
-	return &Registry{Workspace: workspace, Client: client, Publisher: pub}
+func New(workspace, publicBase string, client *meta.Client, pub Publisher) *Registry {
+	return &Registry{Workspace: workspace, PublicBase: publicBase, Client: client, Publisher: pub}
 }
 
 func (r *Registry) Definitions() []model.ToolDefinition {
@@ -141,8 +143,8 @@ func (r *Registry) listFiles(rel string) string {
 }
 
 func (r *Registry) genImage(ctx context.Context, prompt, filename string) string {
-	if filename == "" {
-		filename = "images/generated.png"
+	if !strings.Contains(filename, "/") {
+		filename = "images/" + filename
 	}
 	full, err := r.resolve(filename)
 	if err != nil {
@@ -173,7 +175,11 @@ func (r *Registry) genImage(ctx context.Context, prompt, filename string) string
 	if err := os.WriteFile(full, data, 0o644); err != nil {
 		return "error: " + err.Error()
 	}
-	return fmt.Sprintf("image saved to %s", filename)
+	publicURL := r.PublicBase + "/images/" + strings.TrimPrefix(filename, "images/")
+	if r.OnImageSaved != nil {
+		r.OnImageSaved(publicURL)
+	}
+	return fmt.Sprintf("image generated and SENT to the user as a picture message. URL: %s (no need to repeat the URL in your reply — just confirm what you made)", publicURL)
 }
 
 func (r *Registry) publishSite(name string) string {

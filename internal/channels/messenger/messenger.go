@@ -111,3 +111,66 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
+
+// Action sends a sender_action (typing_on / typing_off / mark_seen).
+func (s *Sender) Action(recipient, action string) error {
+	if s.token == "" {
+		return fmt.Errorf("no page access token")
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"recipient":    map[string]any{"id": recipient},
+		"sender_action": action,
+	})
+	req, err := http.NewRequest(http.MethodPost, "https://graph.facebook.com/v21.0/me/messages", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	q := req.URL.Query()
+	q.Set("access_token", s.token)
+	req.URL.RawQuery = q.Encode()
+	resp, err := s.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
+
+// SendImage sends a native image attachment (Facebook fetches the URL once
+// and stores it — displays as a regular image bubble in the chat).
+func (s *Sender) SendImage(recipient, imageURL string) error {
+	if s.token == "" {
+		return fmt.Errorf("no page access token")
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"recipient": map[string]any{"id": recipient},
+		"message": map[string]any{
+			"attachment": map[string]any{
+				"type": "image",
+				"payload": map[string]any{
+					"url":        imageURL,
+					"is_reusable": true,
+				},
+			},
+		},
+	})
+	req, err := http.NewRequest(http.MethodPost, "https://graph.facebook.com/v21.0/me/messages", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	q := req.URL.Query()
+	q.Set("access_token", s.token)
+	req.URL.RawQuery = q.Encode()
+	resp, err := s.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("send image %d: %s", resp.StatusCode, truncate(string(raw), 200))
+	}
+	return nil
+}

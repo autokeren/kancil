@@ -67,11 +67,11 @@ func runWizard() {
 	}
 }
 
-func buildAgent(cfg *config.Config, _ string) *agent.Agent {
+func buildAgent(cfg *config.Config, _ string, onImage func(string)) *agent.Agent {
 	client := meta.New(cfg.MetaAPIKey, cfg.BaseURL)
-	base := fmt.Sprintf("http://localhost:%d", cfg.Port)
-	sites := sitefs.New(cfg.Workspace, base)
-	reg := tools.New(cfg.Workspace, client, sites)
+	sites := sitefs.New(cfg.Workspace, cfg.PublicURL)
+	reg := tools.New(cfg.Workspace, cfg.PublicURL, client, sites)
+	reg.OnImageSaved = onImage
 	return agent.New(client, reg)
 }
 
@@ -80,8 +80,8 @@ func runServe() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	srv := server.New(cfg, sitefs.New(cfg.Workspace, fmt.Sprintf("http://localhost:%d", cfg.Port)))
-	if err := srv.Start(ctx, func(userID string) *agent.Agent {
-		return buildAgent(cfg, userID)
+	if err := srv.Start(ctx, func(userID string, onImage func(string)) *agent.Agent {
+		return buildAgent(cfg, userID, onImage)
 	}); err != nil {
 		fmt.Println("  ✗ server:", err)
 		os.Exit(1)
@@ -90,7 +90,9 @@ func runServe() {
 
 func runChat() {
 	cfg, _ := ensureConfig()
-	a := buildAgent(cfg, "terminal")
+	a := buildAgent(cfg, "terminal", func(url string) {
+		fmt.Printf("  🖼 %s\n", url)
+	})
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("  🦌 kancil chat — muse-spark-1.3 (Ctrl+C to exit)\n")
 	for {

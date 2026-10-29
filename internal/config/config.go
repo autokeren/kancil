@@ -26,6 +26,7 @@ type Config struct {
 	BaseURL      string     `yaml:"base_url,omitempty"`
 	Model        string     `yaml:"model,omitempty"`
 	Workspace    string     `yaml:"workspace"`
+	PublicURL     string     `yaml:"public_url,omitempty"`
 	Port         int        `yaml:"port,omitempty"`
 	Messenger    Messenger  `yaml:"messenger,omitempty"`
 	WhatsApp     WhatsApp   `yaml:"whatsapp,omitempty"`
@@ -63,6 +64,9 @@ func Load() (*Config, error) {
 	}
 	if c.Port == 0 {
 		c.Port = 8487
+	}
+	if c.PublicURL == "" {
+		c.PublicURL = "http://localhost:8487"
 	}
 	return &c, nil
 }

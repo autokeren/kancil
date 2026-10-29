@@ -40,11 +40,12 @@ func (s *Server) PublicBaseURL() string {
 	return fmt.Sprintf("http://localhost:%d", s.Port)
 }
 
-func (s *Server) Start(ctx context.Context, mkAgent func(userID string) *agent.Agent) error {
+func (s *Server) Start(ctx context.Context, mkAgent func(userID string, onImage func(string)) *agent.Agent) error {
 	mux := http.NewServeMux()
 
 	// sites
 	mux.Handle("/sites/", http.StripPrefix("/sites/", s.sitesHandler()))
+	mux.Handle("/images/", http.StripPrefix("/images/", s.imagesHandler()))
 
 	// messenger webhook
 	mux.HandleFunc("/webhook/messenger", func(w http.ResponseWriter, r *http.Request) {
@@ -70,6 +71,56 @@ func (s *Server) Start(ctx context.Context, mkAgent func(userID string) *agent.A
 	return s.http.Serve(ln)
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func firstLine(s string, n int) string {
+	for i, r := range s {
+		if r == '\n' {
+			return truncateStr(s[:i], n)
+		}
+	}
+	return truncateStr(s, n)
+}
+
+func truncateStr(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
+
+func (s *Server) imagesHandler() http.Handler {
+	root := filepath.Join(s.Cfg.Workspace, "images")
+	return http.FileServer(http.Dir(root))
+}
+
+func instantAck(text string) string {
+	t := strings.ToLower(text)
+	indo := []string{" bikin", "buat", "gambar", "desain", "tolong", "dong", " ya", "gua", "aku", "dong", "kan", "nih", "kopi", "wkwk", "gan", "bang", "bro, buat", "min"}
+	for _, w := range indo {
+		if strings.Contains(t, w) {
+			return "Bentar ya, gua bikinin dulu 🦌 biasanya 30-60 detik, tunggu aja!"
+		}
+	}
+	return "One sec, building it for you 🦌 — usually takes 30-60 seconds. Hang tight!"
+}
+
+func looksLikeBuildTask(text string) bool {
+	t := strings.ToLower(text)
+	words := []string{"bikin", "buat", "buatkan", "membuat", "gambar", "desain", "build", "create", "make", "draw", "design", "generate", "tulis", "render", "bikinin", "buatin"}
+	for _, w := range words {
+		if strings.Contains(t, w) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) sitesHandler() http.Handler {
 	root := filepath.Join(s.Cfg.Workspace, "sites")
 	fs := http.FileServer(http.Dir(root))
@@ -85,18 +136,18 @@ func (s *Server) sitesHandler() http.Handler {
 	})
 }
 
-func (s *Server) agentFor(userID string, mk func(string) *agent.Agent) *agent.Agent {
+func (s *Server) agentFor(userID string, mk func(string, func(string)) *agent.Agent) *agent.Agent {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a, ok := s.agents[userID]
 	if !ok {
-		a = mk(userID)
+		a = mk(userID, func(url string) { s.sendMessengerImage(userID, url) })
 		s.agents[userID] = a
 	}
 	return a
 }
 
-func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, mk func(string) *agent.Agent) {
+func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, mk func(string, func(string)) *agent.Agent) {
 	// verification handshake
 	if r.Method == http.MethodGet {
 		hub := r.URL.Query()
@@ -117,18 +168,63 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 		if ev.Text == "" {
 			continue
 		}
+		fmt.Printf("→ [%s] %s\n", ev.SenderID[:min(8, len(ev.SenderID))], ev.Text)
 		a := s.agentFor(ev.SenderID, mk)
 		go func(ev messenger.Event) {
+			// typing indicator ON + auto-refresh (muse spark reasoning bisa lama)
+			s.sendAction(ev.SenderID, "typing_on")
+
+			// instant ack: task "bikin/membuat/gambar/desain" dibales cepet duluan
+			if looksLikeBuildTask(ev.Text) {
+				s.sendMessenger(ev.SenderID, instantAck(ev.Text))
+			}
+			ticker := time.NewTicker(12 * time.Second)
+			done := make(chan struct{})
+			defer close(done)
+			go func() {
+				for {
+					select {
+					case <-ticker.C:
+						s.sendAction(ev.SenderID, "typing_on")
+					case <-done:
+						ticker.Stop()
+						return
+					}
+				}
+			}()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 			defer cancel()
 			reply, err := a.Handle(ctx, ev.Text)
 			if err != nil {
 				reply = "ampun, error: " + err.Error()
 			}
+			fmt.Printf("← reply: %s\n", firstLine(reply, 90))
 			s.sendMessenger(ev.SenderID, reply)
 		}(ev)
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) sendAction(recipient, action string) {
+	if s.msg == nil {
+		s.msg = messenger.NewSender(s.Cfg.Messenger.AccessToken)
+	}
+	_ = s.msg.Action(recipient, action)
+}
+
+func (s *Server) sendMessengerImage(recipient, imageURL string) {
+	if s.msg == nil {
+		s.msg = messenger.NewSender(s.Cfg.Messenger.AccessToken)
+	}
+	if s.Cfg.Messenger.AccessToken == "" {
+		return
+	}
+	if err := s.msg.SendImage(recipient, imageURL); err != nil {
+		fmt.Printf("⚠ image send: %v\n", err)
+	} else {
+		fmt.Printf("🖼 image sent to chat: %s\n", imageURL)
+	}
 }
 
 func (s *Server) sendMessenger(recipient, text string) {
@@ -141,7 +237,7 @@ func (s *Server) sendMessenger(recipient, text string) {
 	_ = s.msg.Send(recipient, text)
 }
 
-func (s *Server) handleWhatsAppWebhook(w http.ResponseWriter, r *http.Request, mk func(string) *agent.Agent) {
+func (s *Server) handleWhatsAppWebhook(w http.ResponseWriter, r *http.Request, mk func(string, func(string)) *agent.Agent) {
 	if r.Method == http.MethodGet {
 		q := r.URL.Query()
 		if q.Get("hub.verify_token") == s.Cfg.WhatsApp.VerifyToken {
