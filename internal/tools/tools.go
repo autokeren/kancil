@@ -41,6 +41,8 @@ func New(workspace, publicBase string, client *meta.Client, pub Publisher) *Regi
 }
 
 // AttachMCP connects to an MCP server and merges its tools into the registry.
+// For browser servers (ghostfox), only KEY tools are exposed — too many tools
+// confuse the model and it won't use any of them.
 func (r *Registry) AttachMCP(ctx context.Context, srv *mcp.Server) error {
 	if err := srv.Start(ctx); err != nil {
 		return err
@@ -50,11 +52,25 @@ func (r *Registry) AttachMCP(ctx context.Context, srv *mcp.Server) error {
 		return err
 	}
 	r.mcpServers[srv.Name] = srv
-	for _, d := range defs {
-		r.mcpTools[d.Function.Name] = srv
-		r.mcpDefs[d.Function.Name] = d
+
+	// whitelist of browser tools worth exposing (prevents tool overload)
+	browserWhitelist := map[string]bool{
+		"page_open":       true,
+		"page_screenshot": true,
+		"page_snapshot":   true,
 	}
-	fmt.Printf("  ⚡ MCP %s: %d tools\n", srv.Name, len(defs))
+
+	count := 0
+	for _, d := range defs {
+		name := d.Function.Name
+		if srv.Name == "ghostfox" && !browserWhitelist[name] {
+			continue // skip non-essential ghostfox tools
+		}
+		r.mcpTools[name] = srv
+		r.mcpDefs[name] = d
+		count++
+	}
+	fmt.Printf("  ⚡ MCP %s: %d tools (filtered from %d)\n", srv.Name, count, len(defs))
 	return nil
 }
 
