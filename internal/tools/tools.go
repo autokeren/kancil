@@ -65,6 +65,10 @@ func (r *Registry) Definitions() []model.ToolDefinition {
 			Parameters: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"relative path, e.g. sites/kopi/index.html"},"content":{"type":"string","description":"full file content"}},"required":["path","content"]}`),
 		}},
 		{Type: "function", Function: model.ToolFunction{
+			Name: "edit_file", Description: "Edit a file by replacing one exact string with another. Much cheaper than rewriting a whole file — use this for small changes (change a title, a color, one section). old_string must match EXACTLY.",
+			Parameters: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"file to edit"},"old_string":{"type":"string","description":"exact text to find"},"new_string":{"type":"string","description":"replacement text"}},"required":["path","old_string","new_string"]}`),
+		}},
+		{Type: "function", Function: model.ToolFunction{
 			Name: "read_file", Description: "Read a file from the workspace.",
 			Parameters: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`),
 		}},
@@ -118,6 +122,8 @@ func (r *Registry) Execute(ctx context.Context, call model.ToolCall) string {
 	switch call.Function.Name {
 	case "write_file":
 		return r.writeFile(str(args["path"]), str(args["content"]))
+	case "edit_file":
+		return r.editFile(str(args["path"]), str(args["old_string"]), str(args["new_string"]))
 	case "read_file":
 		return r.readFile(str(args["path"]))
 	case "list_files":
@@ -162,6 +168,30 @@ func (r *Registry) writeFile(rel, content string) string {
 		return "error: " + err.Error()
 	}
 	return fmt.Sprintf("written %s (%d bytes)", rel, len(content))
+}
+
+func (r *Registry) editFile(rel, oldStr, newStr string) string {
+	full, err := r.resolve(rel)
+	if err != nil {
+		return "error: " + err.Error()
+	}
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return "error: " + err.Error()
+	}
+	content := string(data)
+	if !strings.Contains(content, oldStr) {
+		return fmt.Sprintf("error: old_string not found in %s — read the file first and copy the exact text", rel)
+	}
+	count := strings.Count(content, oldStr)
+	if count > 1 {
+		return fmt.Sprintf("error: old_string appears %d times in %s — provide a longer unique string", count, rel)
+	}
+	updated := strings.Replace(content, oldStr, newStr, 1)
+	if err := os.WriteFile(full, []byte(updated), 0o644); err != nil {
+		return "error: " + err.Error()
+	}
+	return fmt.Sprintf("edited %s: replaced %d chars → %d chars", rel, len(oldStr), len(newStr))
 }
 
 func (r *Registry) readFile(rel string) string {
