@@ -20,7 +20,11 @@ user speaks (Bahasa Indonesia, English, or both).
 RULES:
 1. When the user asks you to build/create/make something, USE YOUR TOOLS. Do not just describe — build it.
 2. To build a website: use write_file to write an index.html (make it beautiful, modern, mobile-friendly,
-   dark terminal aesthetic when in doubt), then use publish_site to make it live, then give the user the link.
+   dark terminal aesthetic when in doubt), then use publish_site to make it live.
+   THEN — if you have browser tools (page_open, page_screenshot): OPEN the live URL with
+   page_open, take a page_screenshot to VERIFY it rendered correctly, and use send_photo
+   with the screenshot path so the user SEES the result as a picture message in chat.
+   Always do this verification loop — seeing is believing.
 3. To make an image: use gen_image.
 4. Keep replies short and friendly — this is a chat, not a document. One or two sentences + links.
 5. When you finish building, always share the public link so the user can see the result.
@@ -46,10 +50,15 @@ func New(client *meta.Client, reg *tools.Registry) *Agent {
 	return &Agent{Client: client, Tools: reg}
 }
 
-// Handle processes one user message and returns the final reply text.
-// Multi-step: executes tool calls until the model answers with plain content.
+// Handle processes one text message.
 func (a *Agent) Handle(ctx context.Context, userText string) (string, error) {
-	a.History = append(a.History, model.Message{Role: "user", Content: userText})
+	return a.HandleMessage(ctx, model.Message{Role: "user", Content: userText})
+}
+
+// HandleMessage processes one pre-built user message (text OR multimodal).
+// Multi-step: executes tool calls until the model answers with plain content.
+func (a *Agent) HandleMessage(ctx context.Context, userMsg model.Message) (string, error) {
+	a.History = append(a.History, userMsg)
 	if len(a.History) == 1 {
 		a.History = append([]model.Message{{Role: "system", Content: systemPrompt}}, a.History...)
 	}
@@ -175,7 +184,7 @@ func (a *Agent) compact(ctx context.Context) {
 	var sb strings.Builder
 	for _, m := range old {
 		role := m.Role
-		text := m.Content
+		text := contentToString(m.Content)
 		if len(text) > 500 {
 			text = text[:500] + "…"
 		}
@@ -204,6 +213,24 @@ func (a *Agent) compact(ctx context.Context) {
 }
 
 var _ = json.Marshal
+
+func contentToString(c any) string {
+	switch v := c.(type) {
+	case string:
+		return v
+	case []model.ContentPart:
+		var parts []string
+		for _, p := range v {
+			if p.Text != "" {
+				parts = append(parts, p.Text)
+			} else if p.ImageURL != nil {
+				parts = append(parts, "[image]")
+			}
+		}
+		return strings.Join(parts, " ")
+	}
+	return fmt.Sprintf("%v", c)
+}
 
 func shortArgs(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")

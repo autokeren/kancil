@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/autokeren/kancil/internal/meta"
+	"github.com/autokeren/kancil/internal/mcp"
 	"github.com/autokeren/kancil/internal/model"
 )
 
@@ -25,11 +26,37 @@ type Registry struct {
 	Client       *meta.Client
 	Publisher    Publisher
 	OnImageSaved func(publicURL string)
+	mcpServers   map[string]*mcp.Server   // by tool name prefix routing
+	mcpTools     map[string]*mcp.Server   // toolName -> owning server
 }
 
 func New(workspace, publicBase string, client *meta.Client, pub Publisher) *Registry {
-	return &Registry{Workspace: workspace, PublicBase: publicBase, Client: client, Publisher: pub}
+	return &Registry{
+		Workspace: workspace, PublicBase: publicBase, Client: client, Publisher: pub,
+		mcpServers: map[string]*mcp.Server{},
+		mcpTools:   map[string]*mcp.Server{},
+	}
 }
+
+// AttachMCP connects to an MCP server and merges its tools into the registry.
+func (r *Registry) AttachMCP(ctx context.Context, srv *mcp.Server) error {
+	if err := srv.Start(ctx); err != nil {
+		return err
+	}
+	defs, err := srv.ListTools(ctx)
+	if err != nil {
+		return err
+	}
+	r.mcpServers[srv.Name] = srv
+	for _, d := range defs {
+		r.mcpTools[d.Function.Name] = srv
+	}
+	fmt.Printf("  ⚡ MCP %s: %d tools\n", srv.Name, len(defs))
+	return nil
+}
+
+// MCPToolCount returns how many MCP tools are attached.
+func (r *Registry) MCPToolCount() int { return len(r.mcpTools) }
 
 func (r *Registry) Definitions() []model.ToolDefinition {
 	return []model.ToolDefinition{
@@ -53,6 +80,24 @@ func (r *Registry) Definitions() []model.ToolDefinition {
 			Name: "publish_site", Description: "Publish a site folder as a LIVE public website and get its URL. Write the index.html first with write_file, then call this.",
 			Parameters: json.RawMessage(`{"type":"object","properties":{"name":{"type":"string","description":"site name (folder under sites/)"}},"required":["name"]}`),
 		}},
+		{Type: "function", Function: model.ToolFunction{
+			Name: "send_photo", Description: "Send a local image FILE to the user directly in the chat (as a picture message). Use this to show screenshots of websites you verified.",
+			Parameters: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string","description":"local file path of the image (e.g. from page_screenshot result)"}},"required":["path"]}`),
+		}},
+	}
+}
+
+func (r *Registry) mcpDefinition(name string) *model.ToolDefinition {
+	srv := r.mcpTools[name]
+	if srv == nil {
+		return nil
+	}
+	return &model.ToolDefinition{
+		Type: "function",
+		Function: model.ToolFunction{
+			Name:        name,
+			Description: fmt.Sprintf("[mcp:%s] %s", srv.Name, name),
+		},
 	}
 }
 
@@ -61,6 +106,15 @@ func (r *Registry) Execute(ctx context.Context, call model.ToolCall) string {
 	if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
 		return fmt.Sprintf("error: bad arguments: %v", err)
 	}
+	// MCP tools first (ghostfox browser, autokeren, etc.)
+	if srv := r.mcpTools[call.Function.Name]; srv != nil {
+		result, err := srv.CallTool(ctx, call.Function.Name, args)
+		if err != nil {
+			return "error: " + err.Error()
+		}
+		return result
+	}
+
 	switch call.Function.Name {
 	case "write_file":
 		return r.writeFile(str(args["path"]), str(args["content"]))
@@ -72,6 +126,8 @@ func (r *Registry) Execute(ctx context.Context, call model.ToolCall) string {
 		return r.genImage(ctx, str(args["prompt"]), str(args["filename"]))
 	case "publish_site":
 		return r.publishSite(str(args["name"]))
+	case "send_photo":
+		return r.sendPhoto(str(args["path"]))
 	default:
 		return fmt.Sprintf("error: unknown tool %s", call.Function.Name)
 	}
@@ -180,6 +236,36 @@ func (r *Registry) genImage(ctx context.Context, prompt, filename string) string
 		r.OnImageSaved(publicURL)
 	}
 	return fmt.Sprintf("image generated and SENT to the user as a picture message. URL: %s (no need to repeat the URL in your reply — just confirm what you made)", publicURL)
+}
+
+func (r *Registry) sendPhoto(path string) string {
+	// absolute or workspace-relative
+	full := path
+	if !strings.HasPrefix(path, "/") {
+		full = filepath.Join(r.Workspace, path)
+	}
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return "error: " + err.Error()
+	}
+	ext := ".png"
+	if strings.HasSuffix(full, ".jpg") || strings.HasSuffix(full, ".jpeg") {
+		ext = ".jpg"
+	}
+	os.MkdirAll(filepath.Join(r.Workspace, "images"), 0o755)
+	name := filepath.Base(full)
+	if name == "" {
+		name = "photo" + ext
+	}
+	dest := filepath.Join(r.Workspace, "images", name)
+	if err := os.WriteFile(dest, data, 0o644); err != nil {
+		return "error: " + err.Error()
+	}
+	publicURL := r.PublicBase + "/images/" + name
+	if r.OnImageSaved != nil {
+		r.OnImageSaved(publicURL)
+	}
+	return fmt.Sprintf("photo sent to the user's chat as a picture message: %s", publicURL)
 }
 
 func (r *Registry) publishSite(name string) string {

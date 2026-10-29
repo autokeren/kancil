@@ -174,3 +174,18 @@ func (s *Sender) SendImage(recipient, imageURL string) error {
 	}
 	return nil
 }
+
+// DownloadAttachment fetches an attachment payload URL (Facebook CDN) and
+// returns the raw bytes. Audio (voice notes) arrive as .mp4/.m4a; images as .jpg/.png.
+func DownloadAttachment(url string) ([]byte, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download %d", resp.StatusCode)
+	}
+	return io.ReadAll(resp.Body)
+}

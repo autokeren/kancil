@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
@@ -141,6 +142,59 @@ func (s *Server) agentFor(userID string, mk func(string, func(string)) *agent.Ag
 	return a
 }
 
+func (s *Server) buildUserMessage(ctx context.Context, ev messenger.Event) (*model.Message, error) {
+	// pure text
+	if ev.Text != "" && len(ev.Attachments) == 0 {
+		fmt.Printf("→ [%s] %s\n", ev.SenderID[:min(8, len(ev.SenderID))], ev.Text)
+		return &model.Message{Role: "user", Content: ev.Text}, nil
+	}
+
+	// voice note / audio → Muse Voice Transcribe
+	if len(ev.Attachments) > 0 {
+		att := ev.Attachments[0]
+		switch att.Type {
+		case "audio":
+			fmt.Printf("→ [%s] 🎙 voice note (downloading…)\n", ev.SenderID[:min(8, len(ev.SenderID))])
+			data, err := messenger.DownloadAttachment(att.PayloadURL)
+			if err != nil {
+				return nil, err
+			}
+			client := meta.New(s.Cfg.MetaAPIKey, s.Cfg.BaseURL)
+			tctx, tcancel := context.WithTimeout(ctx, 90*time.Second)
+			defer tcancel()
+			transcript, err := client.TranscribeAudio(tctx, data, "voice-note.mp4")
+			if err != nil {
+				return nil, fmt.Errorf("transcribe: %w", err)
+			}
+			fmt.Printf("→ [%s] 🎙 voice note: %s\n", ev.SenderID[:min(8, len(ev.SenderID))], firstLine(transcript, 80))
+			label := "The user sent a VOICE NOTE that says: \"" + transcript + "\" (reply in the same language)"
+			return &model.Message{Role: "user", Content: label}, nil
+
+		case "image":
+			fmt.Printf("→ [%s] 📷 photo (downloading…)\n", ev.SenderID[:min(8, len(ev.SenderID))])
+			data, err := messenger.DownloadAttachment(att.PayloadURL)
+			if err != nil {
+				return nil, err
+			}
+			b64 := base64.StdEncoding.EncodeToString(data)
+			parts := []model.ContentPart{
+				{Type: "text", Text: "(user sent this photo" + captionNote(ev.Text) + " — read it and respond naturally)"},
+				{Type: "image_url", ImageURL: &model.ImageURL{URL: "data:image/jpeg;base64," + b64}},
+			}
+			return &model.Message{Role: "user", Content: parts}, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func captionNote(t string) string {
+	if t != "" {
+		return " with caption: \"" + t + "\""
+	}
+	return ""
+}
+
 func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, mk func(string, func(string)) *agent.Agent) {
 	// verification handshake
 	if r.Method == http.MethodGet {
@@ -158,11 +212,17 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 		http.Error(w, "bad payload", http.StatusBadRequest)
 		return
 	}
+	ctx0 := context.Background()
 	for _, ev := range events {
-		if ev.Text == "" {
+		if ev.Text == "" && len(ev.Attachments) == 0 {
 			continue
 		}
-		fmt.Printf("→ [%s] %s\n", ev.SenderID[:min(8, len(ev.SenderID))], ev.Text)
+
+		// build user message: text / voice-note / photo
+		userMsg, err := s.buildUserMessage(ctx0, ev)
+		if err != nil || userMsg == nil {
+			continue
+		}
 		a := s.agentFor(ev.SenderID, mk)
 		go func(ev messenger.Event) {
 			// typing indicator ON + auto-refresh (muse spark reasoning bisa lama)
@@ -216,7 +276,7 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 			// ── MAIN AGENT TASK ──
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 			defer cancel()
-			reply, err := a.Handle(ctx, ev.Text)
+			reply, err := a.HandleMessage(ctx, *userMsg)
 			if err != nil {
 				reply = "ampun, error: " + err.Error()
 			}

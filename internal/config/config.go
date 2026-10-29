@@ -8,6 +8,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type MCPServer struct {
+	Name    string            `yaml:"name"`
+	Command []string          `yaml:"command"`
+	Env     map[string]string `yaml:"env,omitempty"`
+}
+
 type Messenger struct {
 	AccessToken string `yaml:"access_token,omitempty"`
 	VerifyToken string `yaml:"verify_token,omitempty"`
@@ -28,6 +34,7 @@ type Config struct {
 	Workspace    string     `yaml:"workspace"`
 	PublicURL     string     `yaml:"public_url,omitempty"`
 	MemoryDir     string     `yaml:"memory_dir,omitempty"`
+	MCPServers    []MCPServer `yaml:"mcp_servers,omitempty"`
 	Port         int        `yaml:"port,omitempty"`
 	Messenger    Messenger  `yaml:"messenger,omitempty"`
 	WhatsApp     WhatsApp   `yaml:"whatsapp,omitempty"`

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/autokeren/kancil/internal/agent"
 	"github.com/autokeren/kancil/internal/config"
+	"github.com/autokeren/kancil/internal/mcp"
 	"github.com/autokeren/kancil/internal/meta"
 	"github.com/autokeren/kancil/internal/server"
 	"github.com/autokeren/kancil/internal/sitefs"
@@ -68,10 +70,17 @@ func runWizard() {
 }
 
 func buildAgent(cfg *config.Config, _ string, onImage func(string)) *agent.Agent {
+	return buildAgentWithMCP(cfg, onImage, nil)
+}
+
+func buildAgentWithMCP(cfg *config.Config, onImage func(string), attachMCP func(*tools.Registry)) *agent.Agent {
 	client := meta.New(cfg.MetaAPIKey, cfg.BaseURL)
 	sites := sitefs.New(cfg.Workspace, cfg.PublicURL)
 	reg := tools.New(cfg.Workspace, cfg.PublicURL, client, sites)
 	reg.OnImageSaved = onImage
+	if attachMCP != nil {
+		attachMCP(reg)
+	}
 	return agent.New(client, reg)
 }
 
@@ -79,9 +88,27 @@ func runServe() {
 	cfg, _ := ensureConfig()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	srv := server.New(cfg, sitefs.New(cfg.Workspace, fmt.Sprintf("http://localhost:%d", cfg.Port)))
+	srv := server.New(cfg, sitefs.New(cfg.Workspace, cfg.PublicURL))
+
+	// MCP servers: connect SEKALI di startup, share antar agent
+	var mcpMutex sync.Mutex
+
+	attachMCP := func(reg *tools.Registry) {
+		mcpMutex.Lock()
+		defer mcpMutex.Unlock()
+		for _, mc := range cfg.MCPServers {
+			if reg.MCPToolCount() > 0 {
+				continue // registry already has MCP (shared user session)
+			}
+			srv := mcp.NewServer(mc.Name, mc.Command, mc.Env)
+			if err := reg.AttachMCP(ctx, srv); err != nil {
+				fmt.Printf("  ⚠ MCP %s: %v\n", mc.Name, err)
+			}
+		}
+	}
+
 	if err := srv.Start(ctx, func(userID string, onImage func(string)) *agent.Agent {
-		return buildAgent(cfg, userID, onImage)
+		return buildAgentWithMCP(cfg, onImage, attachMCP)
 	}); err != nil {
 		fmt.Println("  ✗ server:", err)
 		os.Exit(1)
