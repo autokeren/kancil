@@ -2,7 +2,7 @@
 
 **The clever agent that lives in your Messenger.**
 
-Send a text, a voice note, or a photo — Kancil builds it: websites that go live instantly, images that arrive as native picture messages, long-form content — all inside the chat you already use every day.
+Send a text, a voice note, a photo, or a video — Kancil builds it: websites that go live instantly, images that arrive as native picture messages, long-form content — all inside the chat you already use every day.
 
 Built entirely on the **Meta Model API** and the **Messenger Platform** for the Meta Global AI Developer Hackathon (Oct 27 – Nov 4, 2026).
 
@@ -26,6 +26,7 @@ Kancil fills it: **an agent harness that lives natively in Messenger**, where UM
 | **"bikin gambar kucing oren pakai topi wizard"** | Muse Image generates the image | The image, **as a native picture message in the chat** |
 | **🎙 a voice note** (Bahasa Indonesia or English) | Muse Voice Transcribe → agent loop | Text reply, built task — voice notes are first-class input |
 | **📷 a photo** (e.g. a menu, a shop sign) | Muse Spark reads the image (multimodal input) | A site built from *what's in your photo* |
+| **🎥 a video** (from your gallery or camera) | Muse Spark reads the visual sequence AND embedded audio together — one upload, both description and transcript | What happened in the video, described in text |
 | **"ganti judul jadi X"** | `edit_file` — one targeted string replace | Refined site, no full rewrite |
 | Any build request | Ghostfox MCP: agent **opens the live site in its stealth browser, takes a screenshot, and verifies its own work** | **Screenshot of the result, sent to your chat** |
 
@@ -56,6 +57,8 @@ An agent that builds, **sees**, and proves its work — inside a chat app.
 | Voice | **Muse Voice Transcribe 1.0** |
 | Images | **Muse Image 1.0** |
 | Multimodal sight | Muse Spark reads photos sent in the chat |
+| Multimodal video | Muse Spark reads video (visual + embedded audio) via `video_url` content parts |
+| Speech to text | Muse Voice Transcribe 1.0 — official `/v1/asr/transcribe` endpoint, 24kHz mono PCM WAV |
 | Credits | $150 Meta Model API credits (hackathon allocation) |
 
 Plus our own **Ghostfox MCP** stealth browser engine (patched-Firefox) as the agent's eyes for self-verification — connected through the **MCP bridge**, the same protocol Muse Spark 1.3 advertises native support for.
@@ -148,7 +151,7 @@ Config lives in `~/.kancil/config.yaml` (see `config.example.yaml` — never com
 
 ## Limitations, honestly
 
-- **No audio replies yet** — the Meta Model API catalog has speech-to-text (Muse Voice Transcribe) but no text-to-speech model, so Kancil replies in text (plus images). All-Meta, no third-party TTS bolted on. Roadmap: voice replies when Meta ships TTS.
+- **No audio replies yet** — the Meta Model API catalog has speech-to-text (Muse Voice Transcribe, working in Kancil) but no text-to-speech model, so Kancil replies in text (plus images). All-Meta, no third-party TTS bolted on. Roadmap: voice replies when Meta ships TTS.
 - **Single-agent-per-user** — each user gets their own Kancil session and memory; there's no team/collaboration layer yet.
 - **Dev-mode Messenger** — only app-role accounts (admin/developer/tester) can talk to the agent today; app review is the production gate.
 
