@@ -1,0 +1,20 @@
+# Kancil configuration — copy to ~/.kancil/config.yaml and fill in.
+# NEVER commit your real config.yaml (it contains your keys).
+
+meta_api_key: ""              # Meta Model API key (api.meta.ai → API keys)
+base_url: https://api.meta.ai/v1
+model: muse-spark-1.3
+workspace: ~/kancil-builds    # where the agent builds things
+port: 8487
+public_url: ""                # public HTTPS URL of this server (tunnel/domain)
+memory_dir: ""                # defaults to ~/.kancil/memory
+
+messenger:
+  verify_token: ""            # any string — must match Facebook webhook config
+  access_token: ""            # Page Access Token (developers.facebook.com)
+  page_id: ""
+
+whatsapp:
+  access_token: ""            # WhatsApp Cloud API token
+  phone_id: ""
+  verify_token: ""

@@ -21,17 +21,19 @@ type Server struct {
 	Port   int
 	Sites  *sitefs.Store
 	msg    *messenger.Sender
-	agents map[string]*agent.Agent
-	mu     sync.Mutex
-	http   *http.Server
+	agents         map[string]*agent.Agent
+	lastMessageText map[string]string
+	mu             sync.Mutex
+	http           *http.Server
 }
 
 func New(cfg *config.Config, sites *sitefs.Store) *Server {
 	return &Server{
-		Cfg:    cfg,
-		Port:   cfg.Port,
-		Sites:  sites,
-		agents: map[string]*agent.Agent{},
+		Cfg:             cfg,
+		Port:            cfg.Port,
+		Sites:           sites,
+		agents:          map[string]*agent.Agent{},
+		lastMessageText: map[string]string{},
 	}
 }
 
@@ -99,7 +101,7 @@ func (s *Server) imagesHandler() http.Handler {
 	return http.FileServer(http.Dir(root))
 }
 
-func instantAck(text string) string {
+func ackFor(text string) string {
 	t := strings.ToLower(text)
 	indo := []string{" bikin", "buat", "gambar", "desain", "tolong", "dong", " ya", "gua", "aku", "dong", "kan", "nih", "kopi", "wkwk", "gan", "bang", "bro, buat", "min"}
 	for _, w := range indo {
@@ -142,6 +144,13 @@ func (s *Server) agentFor(userID string, mk func(string, func(string)) *agent.Ag
 	a, ok := s.agents[userID]
 	if !ok {
 		a = mk(userID, func(url string) { s.sendMessengerImage(userID, url) })
+		a.OnFirstToolCall = func() {
+			last := s.lastMessageText[userID]
+			s.sendMessenger(userID, ackFor(last))
+		}
+		if s.Cfg.MemoryDir != "" {
+			a.LoadHistory(filepath.Join(s.Cfg.MemoryDir, userID+".json"))
+		}
 		s.agents[userID] = a
 	}
 	return a
@@ -169,15 +178,12 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 			continue
 		}
 		fmt.Printf("→ [%s] %s\n", ev.SenderID[:min(8, len(ev.SenderID))], ev.Text)
+		s.lastMessageText[ev.SenderID] = ev.Text
 		a := s.agentFor(ev.SenderID, mk)
 		go func(ev messenger.Event) {
 			// typing indicator ON + auto-refresh (muse spark reasoning bisa lama)
 			s.sendAction(ev.SenderID, "typing_on")
 
-			// instant ack: task "bikin/membuat/gambar/desain" dibales cepet duluan
-			if looksLikeBuildTask(ev.Text) {
-				s.sendMessenger(ev.SenderID, instantAck(ev.Text))
-			}
 			ticker := time.NewTicker(12 * time.Second)
 			done := make(chan struct{})
 			defer close(done)
@@ -201,6 +207,9 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 			}
 			fmt.Printf("← reply: %s\n", firstLine(reply, 90))
 			s.sendMessenger(ev.SenderID, reply)
+			if s.Cfg.MemoryDir != "" {
+				a.PersistToFile(filepath.Join(s.Cfg.MemoryDir, ev.SenderID+".json"))
+			}
 		}(ev)
 	}
 	w.WriteHeader(http.StatusOK)

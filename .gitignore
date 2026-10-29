@@ -1,3 +1,16 @@
+# binaries
 kancil
 *.exe
+kancil-builds/
+
+# secrets — JANGAN PERNAH commit config asli
+config.yaml
+*.secret
+*.key
+.env*
+
+# agent data
+memory/
+*.log
+
 .DS_Store

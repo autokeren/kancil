@@ -27,6 +27,7 @@ type Config struct {
 	Model        string     `yaml:"model,omitempty"`
 	Workspace    string     `yaml:"workspace"`
 	PublicURL     string     `yaml:"public_url,omitempty"`
+	MemoryDir     string     `yaml:"memory_dir,omitempty"`
 	Port         int        `yaml:"port,omitempty"`
 	Messenger    Messenger  `yaml:"messenger,omitempty"`
 	WhatsApp     WhatsApp   `yaml:"whatsapp,omitempty"`
@@ -67,6 +68,9 @@ func Load() (*Config, error) {
 	}
 	if c.PublicURL == "" {
 		c.PublicURL = "http://localhost:8487"
+	}
+	if c.MemoryDir == "" {
+		c.MemoryDir = filepath.Join(Dir(), "memory")
 	}
 	return &c, nil
 }
