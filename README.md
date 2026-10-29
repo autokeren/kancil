@@ -149,7 +149,9 @@ Plus our own **Ghostfox MCP** stealth browser engine (patched-Firefox) as the ag
 ## Quick start
 
 ```bash
-# (npm package coming; for now build from source)
+npm install -g kancilai
+
+# or build from source:
 go build -o kancil .
 
 # 3-step wizard: Meta API key (verified live) → Messenger tokens → workspace
