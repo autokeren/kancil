@@ -22,12 +22,12 @@ Kancil fills it: **an agent harness that lives natively in Messenger**, where UM
 
 | You send in Messenger | Kancil does | You receive back |
 |---|---|---|
-| **"bikin website kedai kopi Kopi Sore"** | Muse Spark plans → writes `index.html` → publishes the site | Live public URL + the site, instantly |
-| **"bikin gambar kucing oren pakai topi wizard"** | Muse Image generates the image | The image, **as a native picture message in the chat** |
+| **"bikin website kedai kopi Kopi Sore"** *(Indonesian: "build me a coffee shop website")* | Muse Spark plans → writes `index.html` → publishes the site | Live public URL + the site, instantly |
+| **"bikin gambar kucing oren pakai topi wizard"** *(Indonesian: "make me an image of an orange cat wearing a wizard hat")* | Muse Image generates the image | The image, **as a native picture message in the chat** |
 | **🎙 a voice note** (Bahasa Indonesia or English) | Muse Voice Transcribe → agent loop | Text reply, built task — voice notes are first-class input |
 | **📷 a photo** (e.g. a menu, a shop sign) | Muse Spark reads the image (multimodal input) | A site built from *what's in your photo* |
 | **🎥 a video** (from your gallery or camera) | Muse Spark reads the visual sequence AND embedded audio together — one upload, both description and transcript | What happened in the video, described in text |
-| **"ganti judul jadi X"** | `edit_file` — one targeted string replace | Refined site, no full rewrite |
+| **"ganti judul jadi X"** *(Indonesian: "change the title to X")* | `edit_file` — one targeted string replace | Refined site, no full rewrite |
 | Any build request | Ghostfox MCP: agent **opens the live site in its stealth browser, takes a screenshot, and verifies its own work** | **Screenshot of the result, sent to your chat** |
 
 ### The self-verification loop
@@ -35,13 +35,14 @@ Kancil fills it: **an agent harness that lives natively in Messenger**, where UM
 Most bots just answer. Kancil closes the loop autonomously:
 
 ```
-"bikin website apotik sehat"
+"bikin website apotik sehat" *(Indonesian)*
   → write_file  (builds index.html)
   → publish_site (live URL)
   → [MCP: ghostfox] page_open (opens the live site)
   → [MCP: ghostfox] page_screenshot (verifies it rendered)
   → send_photo (screenshot lands in your Messenger)
   → "Udah jadi — ini tampilannya, gua cek sendiri 🦌📸"
+     *(Indonesian: "Done — here's what it looks like, I checked it myself")*
 ```
 
 An agent that builds, **sees**, and proves its work — inside a chat app.
@@ -108,7 +109,7 @@ Plus our own **Ghostfox MCP** stealth browser engine (patched-Firefox) as the ag
 
 ### Design notes
 
-- **Zero hardcoded replies.** Every user-facing sentence — including the quick *"Siap, gua kerjain ya!"* acknowledgment — is written by Muse in the user's language. The ack is fired by a parallel intent-router request to the model; if the message is just a question, Muse replies `SKIP` and no ack is sent.
+- **Zero hardcoded replies.** Every user-facing sentence — including the quick *"Siap, gua kerjain ya!"* (Indonesian: "On it, I'll build that for you!") acknowledgment — is written by Muse in the user's own language. The ack is fired by a parallel intent-router request to the model; if the message is just a question, Muse replies `SKIP` and no ack is sent.
 - **Memory that survives restarts.** Per-user conversation history persists as JSON and reloads on boot. When prompt tokens pass 85% of the 1M context window, Muse summarizes older turns — recent context stays verbatim.
 - **Multimodal input.** Voice notes arrive as audio attachments → downloaded → Muse Voice Transcribe → the transcript enters the agent loop flagged as a voice note, so the agent can reference how the user spoke. Photos arrive as image attachments → base64 → multimodal message parts — Muse Spark reads them natively.
 - **MCP bridge.** Any stdio MCP server listed in the config attaches at runtime; its tools (with full JSON schemas) merge into the model's toolset. Ghostfox brings 72 browser tools. The bridge is the same protocol Muse Spark 1.3 ships native support for.
