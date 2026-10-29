@@ -117,8 +117,17 @@ func runServe() {
 
 func runChat() {
 	cfg, _ := ensureConfig()
-	a := buildAgent(cfg, "terminal", func(url string) {
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	a := buildAgentWithMCP(cfg, func(url string) {
 		fmt.Printf("  🖼 %s\n", url)
+	}, func(reg *tools.Registry) {
+		for _, mc := range cfg.MCPServers {
+			srv := mcp.NewServer(mc.Name, mc.Command, mc.Env)
+			if err := reg.AttachMCP(ctx, srv); err != nil {
+				fmt.Printf("  ⚠ MCP %s: %v\n", mc.Name, err)
+			}
+		}
 	})
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("  🦌 kancil chat — muse-spark-1.3 (Ctrl+C to exit)\n")

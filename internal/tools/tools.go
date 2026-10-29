@@ -55,6 +55,7 @@ func (r *Registry) AttachMCP(ctx context.Context, srv *mcp.Server) error {
 
 	// whitelist of browser tools worth exposing (prevents tool overload)
 	browserWhitelist := map[string]bool{
+		"session_create":  true,
 		"page_open":       true,
 		"page_screenshot": true,
 		"page_snapshot":   true,
@@ -78,6 +79,17 @@ func (r *Registry) AttachMCP(ctx context.Context, srv *mcp.Server) error {
 func (r *Registry) MCPToolCount() int { return len(r.mcpTools) }
 
 func (r *Registry) Definitions() []model.ToolDefinition {
+	defs := r.nativeDefinitions()
+	// append MCP tools (browser, etc.)
+	for name := range r.mcpTools {
+		if d := r.mcpDefinition(name); d != nil {
+			defs = append(defs, *d)
+		}
+	}
+	return defs
+}
+
+func (r *Registry) nativeDefinitions() []model.ToolDefinition {
 	return []model.ToolDefinition{
 		{Type: "function", Function: model.ToolFunction{
 			Name: "write_file", Description: "Write a file into the workspace (websites, code, text). Use forward slashes. Directories are created automatically.",

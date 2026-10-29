@@ -64,6 +64,11 @@ func (a *Agent) HandleMessage(ctx context.Context, userMsg model.Message) (strin
 	}
 
 	toolDefs := a.Tools.Definitions()
+	fmt.Printf("    🔧 sending %d tools to Muse: ", len(toolDefs))
+	for _, td := range toolDefs {
+		fmt.Printf("%s ", td.Function.Name)
+	}
+	fmt.Println()
 
 	for step := 0; step < MaxSteps; step++ {
 		resp, err := a.Client.Complete(ctx, meta.CompleteOptions{
