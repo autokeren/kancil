@@ -1,0 +1,33 @@
+{
+  "name": "kancil",
+  "version": "0.1.0",
+  "description": "🦌 The clever agent that lives in your Messenger. Muse Spark brain + Ghostfox MCP eyes + zero hardcoded replies.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/autokeren/kancil.git"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "messenger",
+    "muse-spark",
+    "meta",
+    "mcp",
+    "hackathon"
+  ],
+  "bin": {
+    "kancil": "run.js"
+  },
+  "scripts": {
+    "install": "node install.js",
+    "postinstall": "node install.js"
+  },
+  "files": [
+    "install.js",
+    "run.js"
+  ],
+  "engines": {
+    "node": ">=14"
+  }
+}

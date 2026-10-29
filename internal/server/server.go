@@ -188,6 +188,22 @@ func (s *Server) buildUserMessage(ctx context.Context, ev messenger.Event) (*mod
 	return nil, nil
 }
 
+func contentToString(c any) string {
+	switch v := c.(type) {
+	case string:
+		return v
+	case []model.ContentPart:
+		var parts []string
+		for _, p := range v {
+			if p.Text != "" {
+				parts = append(parts, p.Text)
+			}
+		}
+		return strings.Join(parts, " ")
+	}
+	return fmt.Sprintf("%v", c)
+}
+
 func captionNote(t string) string {
 	if t != "" {
 		return " with caption: \"" + t + "\""
@@ -223,10 +239,14 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 		if err != nil || userMsg == nil {
 			continue
 		}
-		a := s.agentFor(ev.SenderID, mk)
-		go func(ev messenger.Event) {
+		userMsgRef := userMsg
+		senderID := ev.SenderID
+		go func() {
+			// agent dibuat DI SINI (MCP attach kalau perlu) — webhook gak ke-block
+			a := s.agentFor(senderID, mk)
+
 			// typing indicator ON + auto-refresh (muse spark reasoning bisa lama)
-			s.sendAction(ev.SenderID, "typing_on")
+			s.sendAction(senderID, "typing_on")
 			ticker := time.NewTicker(12 * time.Second)
 			done := make(chan struct{})
 			defer close(done)
@@ -234,7 +254,7 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 				for {
 					select {
 					case <-ticker.C:
-						s.sendAction(ev.SenderID, "typing_on")
+						s.sendAction(senderID, "typing_on")
 					case <-done:
 						ticker.Stop()
 						return
@@ -253,7 +273,7 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 				ackClient := meta.New(s.Cfg.MetaAPIKey, s.Cfg.BaseURL)
 				ackReq := []model.Message{
 					{Role: "system", Content: "You are Kancil's intent router in a chat app. If the user's message asks to BUILD/CREATE/MAKE something (website, image, file, report), write ONE short friendly sentence (max 12 words) confirming you're working on it — same language as the user, one emoji. If it's just a question/chat/greeting, reply with exactly: SKIP"},
-					{Role: "user", Content: ev.Text},
+					{Role: "user", Content: contentToString(userMsgRef.Content)},
 				}
 				resp, err := ackClient.Complete(ackCtx, meta.CompleteOptions{Messages: ackReq, MaxTokens: 3000})
 				if err != nil {
@@ -270,13 +290,13 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 				}
 				muAck.Unlock()
 				fmt.Printf("← ack (muse): %s\n", firstLine(text, 60))
-				s.sendMessenger(ev.SenderID, text)
+				s.sendMessenger(senderID, text)
 			}()
 
 			// ── MAIN AGENT TASK ──
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 			defer cancel()
-			reply, err := a.HandleMessage(ctx, *userMsg)
+			reply, err := a.HandleMessage(ctx, *userMsgRef)
 			if err != nil {
 				reply = "ampun, error: " + err.Error()
 			}
@@ -284,11 +304,11 @@ func (s *Server) handleMessengerWebhook(w http.ResponseWriter, r *http.Request, 
 			replySent = true
 			muAck.Unlock()
 			fmt.Printf("← reply: %s\n", firstLine(reply, 90))
-			s.sendMessenger(ev.SenderID, reply)
+			s.sendMessenger(senderID, reply)
 			if s.Cfg.MemoryDir != "" {
-				a.PersistToFile(filepath.Join(s.Cfg.MemoryDir, ev.SenderID+".json"))
+				a.PersistToFile(filepath.Join(s.Cfg.MemoryDir, senderID+".json"))
 			}
-		}(ev)
+		}()
 	}
 	w.WriteHeader(http.StatusOK)
 }
